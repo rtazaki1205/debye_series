@@ -1,10 +1,10 @@
-PROGRAM = rundebye
-EXEFNAME = $(PROGRAM).x
+PROGRAM = a
+EXEFNAME = $(PROGRAM).out
 SRCS = debye_series.f90 call.f90
 OBJS = $(SRCS:.f90=.o) 
 
-debug  = true
-openmp = true
+#debug  = true
+#openmp = true
 
 FC = gfortran
 #FC = ifort

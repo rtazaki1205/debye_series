@@ -3,106 +3,103 @@ implicit none
 integer, parameter      :: dp = selected_real_kind(P=15)
 end module types
 
-!----------------------------------------------------------------------
+!--------------------------------------------------------------------------------
 !       About this code
-!----------------------------------------------------------------------
+!--------------------------------------------------------------------------------
 !
-! This code computes Mie theory codes, but based on the Debye series,
-! instead of using Lorenz-Mie series. 
+! This code computes Mie's light scattering solution by using the Debye series,
+! instead of Lorenz-Mie series. 
 ! The basic structure of this code follows the BHMIE code by B.T.Draine:
 !  https://www.astro.princeton.edu/~draine/scattering.html
-! but it was modified to improve the accuracy by RT.
+! but it was modified to improve its accuracy and convergence by RT.
 !
 ! The Debye series can "exactly" decompose the Lorenz-Mie series into
 ! various scattering components, such as diffraction, reflection, and 
-! refraction (including (np+1) internal refraction).
+! refraction (including (np+1) internal refraction). 
+! See also Tazaki et al. (in prep.) for more detail.
 !
 ! In this code, I adopted the algorithm developed by 
 !        Shen & Wang (2010, ApOpt, 49, 2422), 
 ! where they developed a stable algorithm for computing highly absorbing
-! sphere as well as non-absorbing sphere.
+! sphere as well as non-absorbing sphere. 
 !
-!                                          Ryo Tazaki (2020. 06. 19)
+!                                                  Ryo Tazaki (2020/June/19)
 !
-!----------------------------------------------------------------------
+!--------------------------------------------------------------------------------
 !       Input parameters
-!----------------------------------------------------------------------
+!--------------------------------------------------------------------------------
 !
-! x        : size parameter of a sphere
-! refrel   : complex refractive index
-! nang     : number of scattering angles from 0 to 90 deg.
-! ical     : switch for the Debye series calculation
-!            ical = 0  : Series are summed upto the infinite term.
-!                        Returned S1p, S2p contains values 
-!                        for 0 ~ np terms.             
-!            ical = 1  : Series are terminated at np.
-!                        Returned S1p,S2p contains values 
-!                        for 0 ~ np terms.             
-! np       : Terms to be computed in the debye series terms (np >= 0). 
-!            np=0 : Fraunhofer diffraction and reflected light.
-!            np=1 : secondary refracted light 
-!            np=2 : tertially refracted light (one internal reflection)
-!            ...
+! x               : size parameter of a sphere
+! refrel          : complex refractive index
+! nang            : number of scattering angles from 0 to 90 deg.
+! ical            : switch for the Debye series calculation
+!                   ical = 0 : Series are summed upto the infinite term.
+!                              Returned S1p, S2p contains values for 0 ~ np terms.
+!                   ical = 1 : Series are terminated at np.
+!                              Returned S1p,S2p contains values for 0 ~ np terms.
+! np              : Terms to be computed in the debye series terms (np >= 0). 
+!                       np=0 : Fraunhofer diffraction and reflected light.
+!                       np=1 : Secondary refracted light 
+!                       np=2 : Tertially refracted light (one internal reflection)
+!                         ...
 !
-!----------------------------------------------------------------------
+!--------------------------------------------------------------------------------
 !       Output parameters
-!----------------------------------------------------------------------
+!--------------------------------------------------------------------------------
 !
-! S1(2*nang-1),     : Mie scattering amplitude at each scattering angles 
-! S2(2*nang-1)    
-! S1p(p,2*nang-1)   : Mie scattering amplitude of p-th scattered wave
-! S2p(p,2*nang-1)     at each scattering angles. For example, p=0 contains
-!                     the amplitude of Fraunhofer diffraction + surface 
-!                     reflected light, p=1 does twice refracted light.
-! Qext,Qsca,Qback   : Extinction, scattering, back scattering efficiency
-! gsca              : Asymmetry parameter    
+! S1(2*nang-1),   : Mie scattering amplitude at each scattering angles 
+! S2(2*nang-1)  
+! S1p(p,2*nang-1) : Mie scattering amplitude of p-th order scattered wave
+! S2p(p,2*nang-1)   at each scattering angles. For example, p=0 contains
+!                   the amplitude of Fraunhofer diffraction + surface 
+!                   reflected light, p=1 does that of twice refracted light.
+! Qext,Qsca,Qback : Extinction, scattering, back scattering efficiency
+! gsca            : Asymmetry parameter    
 !
-!----------------------------------------------------------------------
-subroutine debye_series_rt(x,refrel,nang,ical,np,&
-                S1,S2,S1p,S2p,Qext,Qsca,Qback,gsca)
+!--------------------------------------------------------------------------------
+subroutine debye_series_rt(x,refrel,nang,ical,np,S1,S2,S1p,S2p,Qext,Qsca,Qback,gsca)
 use types
 implicit none
-integer,parameter          :: npmax=100
-complex(kind=dp),parameter :: ivac=cmplx(0.0_dp,1.0_dp)
 
 !--------------------------------------------------------------------------------
 !       Input variables
 !--------------------------------------------------------------------------------
-real(kind=dp)              :: x                  ! size parameter
-complex(kind=dp)           :: refrel             ! refractive index
-integer                    :: nang               ! angle mesh
-integer                    :: ical               ! Switch for series termination 
-integer                    :: np                 ! Number of partial waves
+real(kind=dp)                               :: x       ! size parameter
+complex(kind=dp)                            :: refrel  ! refractive index
+integer                                     :: nang    ! number of angle mesh
+integer                                     :: ical    ! Series termination switch
+integer                                     :: np      ! Number of partial waves
 
 !--------------------------------------------------------------------------------
 !       Output variables
 !--------------------------------------------------------------------------------
 
-complex(kind=dp),dimension(1:2*nang-1)         :: S1,S2   ! scat. amplitude
-complex(kind=dp),dimension(0:npmax,1:2*nang-1) :: S1p,S2p ! partial scat. amplitude 
-real(kind=dp)                                  :: qext    ! Qext
-real(kind=dp)                                  :: qsca    ! Qsca
-real(kind=dp)                                  :: gsca    ! <cos>
-real(kind=dp)                                  :: qback   ! Qback
+complex(kind=dp),dimension(1:2*nang-1)      :: S1,S2   ! Mie scattering amplitude
+complex(kind=dp),dimension(0:np,1:2*nang-1) :: S1p,S2p ! Partial wave sca. amplitude 
+real(kind=dp)                               :: qext    ! Qext
+real(kind=dp)                               :: qsca    ! Qsca
+real(kind=dp)                               :: gsca    ! <cos>
+real(kind=dp)                               :: qback   ! Qback
 
 !--------------------------------------------------------------------------------
 !       Local variables
 !--------------------------------------------------------------------------------
+complex(kind=dp),parameter:: ivec=cmplx(0.0_dp,1.0_dp)
+real(kind=dp),parameter   :: floorval=1.0e-30_dp
 integer::j,jj,n,nn,nstop,nmx,ip,iq
 real(kind=dp)::nu,d1x_ini
-complex(kind=dp)::y,d1y_ini
+real(kind=dp)::xstop,ymod,en,fn,p,fnq_diff,dang,pii,theta
+real(kind=dp)::realpart,imagpart
 real(kind=dp),allocatable,dimension(:)::ajx
+real(kind=dp),dimension(1:nang)::amu,pi0,pi1,pi,tau
+complex(kind=dp)::y,d1y_ini,xi1,xi,dpcx
+complex(kind=dp)::An13yy,An31yy,u0,u11,u31,u13,u33,Tn,R212n,R121n,umR212n,umR121n
+complex(kind=dp)::an,bn,an1,bn1,fnq(2),fnqp(2,0:np),alpha(2),beta(2),R121n_power
 complex(kind=dp),allocatable,dimension(:)::An13xx,lnAn13yy,w31,ajy
 complex(kind=dp),allocatable,dimension(:,:)::d1,d3
-complex(kind=dp)::An13yy,An31yy,u0,u11,u31,u13,u33,Tn,R212n,R121n,umR212n,umR121n
-complex(kind=dp)::an,bn,an1,bn1,fnq(2),fnqp(2,0:npmax),alpha(2),beta(2)
-complex(kind=dp)::xi1,xi,dpcx
-real(kind=dp)::xstop,ymod,en,fn,p,fnq_diff,dang,pii,theta
-real(kind=dp),dimension(1:nang)::amu,pi0,pi1,pi,tau
-real(kind=dp) realpart
-real(kind=dp) imagpart
 realpart(dpcx)=(dble(dpcx))
 imagpart(dpcx)=(dimag(dpcx))
+
 
 ! some checks...
 y     = refrel*x
@@ -166,6 +163,7 @@ enddo
 !----------------------------------------------------------------------
 allocate(An13xx(0:nmx),lnAn13yy(0:nmx),d1(2,0:nmx),&
         d3(2,0:nmx),w31(0:nmx),ajx(1:nmx),ajy(1:nmx))
+
 d1      = cmplx(0.0_dp,0.0_dp)
 d3      = cmplx(0.0_dp,0.0_dp)
 An13xx  = cmplx(0.0_dp,0.0_dp)
@@ -195,10 +193,10 @@ do n=1,nmx
         d1(2,nmx-n) = (en/y) - (1.0_dp/(d1(2,nmx-n+1) + en/y))
 enddo
 !calculate D(3)_n(x,or,mx) by upward recurrence.
-d3(1,0)=ivac
-d3(2,0)=ivac
+d3(1,0)=ivec
+d3(2,0)=ivec
 w31 = cmplx(0.0_dp,0.0_dp)
-w31(0) = -1.0/tan(y)+ivac
+w31(0) = -1.0/tan(y)+ivec
 do n=1,nmx
         en=real(n,kind=dp)
         d3(1,n) = -(en/x) + (1.0_dp/(en/x - d3(1,n-1)))
@@ -206,13 +204,13 @@ do n=1,nmx
         d3(2,n) = d1(2,n) + w31(n) 
 enddo
 !calculate A(13)_n(x) by upward recurrence.
-An13xx(0)=2.0_dp/(1.0_dp-ivac/tan(x))
+An13xx(0)=2.0_dp/(1.0_dp-ivec/tan(x))
 do n=1,nmx
         en = real(n,kind=dp)
         An13xx(n) = An13xx(n-1)*(d1(1,n-1)-en/x)/(d3(1,n-1)-en/x)
 enddo
 !calculate lnA(13)_n(y) by upward recurrence.
-lnAn13yy(0)=2.0_dp*aimag(y)+log(exp(-2.0_dp*aimag(y))-exp(-ivac*2.0_dp*real(y)))
+lnAn13yy(0)=2.0_dp*aimag(y)+log(exp(-2.0_dp*aimag(y))-exp(-ivec*2.0_dp*real(y)))
 do n=1,nmx
         en = real(n,kind=dp)
         lnAn13yy(n) = lnAn13yy(n-1)+log((d1(2,n-1)-en/y)/(d3(2,n-1)-en/y))
@@ -226,7 +224,21 @@ beta(2)  = refrel
 qsca     = 0.0_dp
 gsca     = 0.0_dp
 p        =-1.0_dp  
-do n=1,nmx              ! nmx rather than nstop
+
+!
+! Start series summation.
+!
+! Comments on the termination order:
+! Here, the series sum is truncated at the order 'nmx' rather than 'nstop'.
+! This is because nstop is not enough to attain convergence for high order 
+! scattered waves (large p). 
+! The Debye series code written by P. Laven:
+!       http://www.philiplaven.com/mieplot.htm
+! seems to adopt nstop as the termination order, leading to 
+! the unconverged results for high order of p.
+! 
+do n=1,nmx  
+
         en = real(n,kind=dp)
         fn = (2.0_dp*en+1.0_dp)/(en*(en+1.0_dp))
 
@@ -237,7 +249,10 @@ do n=1,nmx              ! nmx rather than nstop
                 bn1=bn
         endif
 
-        fnq = 0.0_dp
+        !initialize
+        fnq  = cmplx(0.0_dp,0.0_dp)
+        fnqp = cmplx(0.0_dp,0.0_dp)
+        
         do iq=1,2
 
                 ! Shen & Wang (2010b) updated algorithm.
@@ -246,7 +261,8 @@ do n=1,nmx              ! nmx rather than nstop
                 u31 = alpha(iq) * d3(1,n) - beta(iq) * d1(2,n)
                 u13 = alpha(iq) * d1(1,n) - beta(iq) * d3(2,n)
                 u33 = alpha(iq) * d3(1,n) - beta(iq) * d3(2,n)
-                
+               
+
                 ! z=|z|e^{i*theta}: complex
                 ! --> ln(z) = ln|z| + i * theta
                 !     ln|z| = Re(ln(z))
@@ -271,11 +287,22 @@ do n=1,nmx              ! nmx rather than nstop
                                 (An31yy*u33-u31)
                         R121n = 1.0_dp+u31/(An31yy*u33-u31)
                 endif
-                ! with diffraction:
-                fnqp(iq,0) = fnq_diff * umR212n
+                
+                ! In this code, p=0 is defined such that 
+                ! diffraction + Fresnel reflection
+                fnqp(iq,0)  = fnq_diff * umR212n
+
+                ! For an optically thick grain, R121n^{ip-1} or fnqp
+                ! often causes underflows, so it is safe to set 
+                ! some floor values for them.
+                R121n_power = cmplx(1.0_dp,0.0_dp)
                 do ip=1,np
-                        fnqp(iq,ip) = - 0.5_dp * Tn * R121n ** real(ip-1,kind=dp)
+                fnqp(iq,ip) = - 0.5_dp * Tn * R121n_power
+                R121n_power = R121n_power * R121n
+                if(abs(fnqp(iq,ip)) .le. floorval) fnqp(iq,ip) = cmplx(0.0_dp,0.0_dp)
+                if(abs(R121n_power) .le. floorval) exit
                 enddo
+
                 if(ical .eq. 0) then
                         fnq(iq) = fnq_diff * (umR212n - Tn / umR121n)
                 elseif(ical .eq. 1) then
@@ -314,8 +341,6 @@ do n=1,nmx              ! nmx rather than nstop
                         enddo
                 endif
         enddo
-        !write(*,1000) n,real(S1(1)),aimag(S1(1)),real(an),aimag(an),real(bn),aimag(bn)
-        !real(an),aimag(an),real(bn),aimag(bn),pi(1),tau(1)
 
         !*** now do angles greater than 90 using pi and tau from
         !    angles less than 90.

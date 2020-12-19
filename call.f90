@@ -4,46 +4,51 @@
 program call_debye
 use types
 implicit none
-integer,parameter:: npmax = 100
-integer,parameter:: nang  = 181
+integer::nang,ical,ip,np,j
+real(kind=dp)::x,ext,sca,back,gs,dang,refre,refim
+real(kind=dp),allocatable,dimension(:)  :: ang,S11,S12,POL 
+real(kind=dp),allocatable,dimension(:,:):: S11p,S12p,POLp
 complex(kind=dp)::refrel
-integer:: ical,ip,np,j
-real(kind=dp)::x,ext,sca,back,gs,dang,refre,refim,tauabs
-real(kind=dp),dimension(2*nang-1)::ang,S11,S12,S33,S34
-real(kind=dp),dimension(0:npmax,2*nang-1)::S11p,S12p,S33p,S34p
-complex(kind=dp),dimension(2*nang-1)::S1,S2
-complex(kind=dp),dimension(0:npmax,2*nang-1)::S1p,S2p
+complex(kind=dp),allocatable,dimension(:)  ::S1,S2
+complex(kind=dp),allocatable,dimension(:,:)::S1p,S2p
+
 !----------------------------------------------------------------------
-!  INPUT PARAMETER
+!  input parameters
 !----------------------------------------------------------------------
 x       = 1.0e2_dp      ! size parameter     
 refre   = 1.330_dp      ! real part of refractive index
-refim   = 1.d-1         ! imag part of refractive index
+refim   = 1.0e-3_dp     ! imag part of refractive index
+nang    = 361           ! number of scat. angles from 0 to 90 degree.
 ical    = 0             ! Switch for debye series truncation order
-np      = 5             ! Maximum order of the debye series
+np      = 20            ! Maximum order of the debye series
+
 !----------------------------------------------------------------------
 !  call debye_series_rt
 !----------------------------------------------------------------------
+allocate(S1(1:2*nang-1),S2(1:2*nang-1),ang(1:2*nang-1),S11(1:2*nang-1),&
+        S12(1:2*nang-1),S11p(0:np,2*nang-1),S12p(0:np,2*nang-1),&
+        S1p(0:np,2*nang-1),S2p(0:np,2*nang-1),POL(1:2*nang-1),POLp(0:np,1:2*nang-1))
+
 refrel = cmplx(refre,refim)
 dang   = 90.0_dp/real(nang-1,kind=dp)
-call debye_series_rt(x,refrel,nang,ical,np,s1,s2,s1p,s2p,ext,sca,back,gs)
+call debye_series_rt(x,refrel,nang,ical,np,S1,S2,S1p,S2p,ext,sca,back,gs)
+POLp   = 0.0_dp
 do j=1,2*nang-1
-        ang(j)=dang*dble(j-1)
-        S11(j)=0.5D0*ABS(S2(J))*ABS(S2(J))
-        S11(j)=S11(j)+0.5D0*ABS(S1(J))*ABS(S1(J))
-        S12(j)=0.5D0*ABS(S2(J))*ABS(S2(J))
-        S12(j)=S12(j)-0.5D0*ABS(S1(J))*ABS(S1(J))       
-        S33(j)=REAL(S1(J)*CONJG(S2(J)))
-        S34(j)=AIMAG(S2(J)*CONJG(S1(J)))
+        ang(j) = dang*dble(j-1)
+        S11(j) = 0.5_dp*ABS(S2(J))*ABS(S2(J))
+        S11(j) = S11(j)+0.5_dp*ABS(S1(J))*ABS(S1(J))
+        S12(j) = 0.5_dp*ABS(S2(J))*ABS(S2(J))
+        S12(j) = S12(j)-0.5_dp*ABS(S1(J))*ABS(S1(J))       
+        POL(j) = -S12(j)/S11(j)
         do ip=0,np
-                S11p(ip,j)=0.5D0*ABS(S2p(ip,J))*ABS(S2p(ip,J))
-                S11p(ip,j)=S11p(ip,j)+0.5D0*ABS(S1p(ip,J))*ABS(S1p(ip,J))
-                S12p(ip,j)=0.5D0*ABS(S2p(ip,J))*ABS(S2p(ip,J))
-                S12p(ip,j)=S12p(ip,j)-0.5D0*ABS(S1p(ip,J))*ABS(S1p(ip,J))       
-                S33p(ip,j)=REAL(S1p(ip,J)*CONJG(S2p(ip,J)))
-                S34p(ip,j)=AIMAG(S2p(ip,J)*CONJG(S1p(ip,J)))
+                S11p(ip,j)=0.5_dp*ABS(S2p(ip,J))*ABS(S2p(ip,J))
+                S11p(ip,j)=S11p(ip,j)+0.5_dp*ABS(S1p(ip,J))*ABS(S1p(ip,J))
+                S12p(ip,j)=0.5_dp*ABS(S2p(ip,J))*ABS(S2p(ip,J))
+                S12p(ip,j)=S12p(ip,j)-0.5_dp*ABS(S1p(ip,J))*ABS(S1p(ip,J)) 
+                if(S11p(ip,j) .ne. 0.0_dp) POLp(ip,j)=-S12p(ip,j)/S11p(ip,j)
        enddo
 enddo
+
 !----------------------------------------------------------------------
 !  OUTPUT
 !----------------------------------------------------------------------
@@ -69,15 +74,17 @@ enddo
 write(10,*)
 write(10,2000) "ang (deg)","P","P(p=0)","P(p=1)","..."
 do j=1,2*nang-1
-        write(10,1000) ang(j),-S12(j)/S11(j),(-S12p(ip,j)/S11p(ip,j),ip=0,min(np,5))
+        write(10,1000) ang(j),POL(j),(POLp(ip,j),ip=0,min(np,5))
 enddo
 close(10)
+
+deallocate(S1,S2,ang,S11,S12,S11p,S12p,S1p,S2p,POL,POLp)
+
+stop
 
 1000 format(' ',1P10E15.5)
 2000 format('#',10A15)
 2100 format('#',1PE15.5,A)
 2300 format('#',I15,A)
 2301 format('#',A15,A)
-
-stop
 end program call_debye
