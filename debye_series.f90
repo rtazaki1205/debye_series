@@ -16,7 +16,7 @@ end module types
 ! The Debye series can "exactly" decompose the Lorenz-Mie series into
 ! various scattering components, such as diffraction, reflection, and 
 ! refraction (including (np+1) internal refraction). 
-! See also Tazaki et al. (in prep.) for more detail.
+! See also Appendix A in Tazaki et al. (2021) for more detail.
 !
 ! In this code, I adopted the algorithm developed by 
 !        Shen & Wang (2010, ApOpt, 49, 2422), 
