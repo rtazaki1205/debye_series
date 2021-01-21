@@ -11,6 +11,8 @@ it can be considered as a generalized version of the geometrical optics approxim
 
 The codes adopt the algorithm developed by [Shen & Wang (2010)](https://ui.adsabs.harvard.edu/abs/2010ApOpt..49.2422S).
 
+If you wish to publish results obtained by this code, please cite  [Shen & Wang (2010)](https://ui.adsabs.harvard.edu/abs/2010ApOpt..49.2422S) and [Tazaki et al. 2021](https://ui.adsabs.harvard.edu/abs/2021arXiv210107635T).
+
 # Terms of use
 
 The codes are distributed under the [MITlicense](https://opensource.org/licenses/MIT) and can be used, changed
